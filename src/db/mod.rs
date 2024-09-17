@@ -2,7 +2,7 @@ use crate::types::type_utils::convert_hex_string_to_i64;
 use crate::types::BlockDetails;
 use crate::types::BlockHeaderWithFullTransaction;
 use anyhow::{Context, Result};
-use log::{info, warn};
+use log::{info, warn, error};
 use sqlx::postgres::PgConnectOptions;
 use sqlx::ConnectOptions;
 use sqlx::QueryBuilder;
@@ -95,14 +95,20 @@ pub async fn write_blockheader(block_header: BlockHeaderWithFullTransaction) -> 
     let pool = get_db_pool().await?;
     let mut tx = pool.begin().await?;
 
+    // // Print block_header details
+    // info!("Block Header Details: {:?}", block_header);
+
     // Insert block header
     let result = sqlx::query(
         r#"
         INSERT INTO blockheaders (
             block_hash, number, gas_limit, gas_used, base_fee_per_gas,
-            nonce, transaction_root, receipts_root, state_root
+            nonce, transaction_root, receipts_root, state_root,
+            parent_hash, miner, logs_bloom, difficulty, totalDifficulty,
+            sha3_uncles, timestamp, extra_data, mix_hash, withdrawals_root, 
+            blob_gas_used, excess_blob_gas, parent_beacon_block_root
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
         ON CONFLICT (number) DO NOTHING
         "#,
     )
@@ -115,9 +121,26 @@ pub async fn write_blockheader(block_header: BlockHeaderWithFullTransaction) -> 
     .bind(&block_header.transactions_root)
     .bind(&block_header.receipts_root)
     .bind(&block_header.state_root)
+    .bind(&block_header.parent_hash)
+    .bind(&block_header.miner)
+    .bind(&block_header.logs_bloom)
+    .bind(&block_header.difficulty)
+    .bind(&block_header.total_difficulty)
+    .bind(&block_header.sha3_uncles)
+    .bind(convert_hex_string_to_i64(&block_header.timestamp))
+    .bind(&block_header.extra_data)
+    .bind(&block_header.mix_hash)
+    .bind(&block_header.withdrawals_root)
+    .bind(&block_header.blob_gas_used)
+    .bind(&block_header.excess_blob_gas)
+    .bind(&block_header.parent_beacon_block_root)
     .execute(&mut *tx) // Changed this line
     .await
-    .context("Failed to insert block header")?;
+    .with_context(|| format!("Failed to insert block header for block number: {}", block_header.number))
+    .map_err(|e| {
+        error!("Detailed error: {:?}", e);
+        e
+    })?;
 
     if result.rows_affected() == 0 {
         warn!(
