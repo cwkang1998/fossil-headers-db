@@ -8,5 +8,18 @@ CREATE TABLE IF NOT EXISTS blockheaders (
     nonce VARCHAR(78) NOT NULL,
     transaction_root CHAR(66),
     receipts_root CHAR(66),
-    state_root CHAR(66)
+    state_root CHAR(66),
+    parent_hash VARCHAR(66),
+    miner VARCHAR(42),
+    logs_bloom VARCHAR(1024),
+    difficulty VARCHAR(78),
+    totalDifficulty VARCHAR(78),
+    sha3_uncles VARCHAR(66),
+    timestamp VARCHAR(100),  
+    extra_data VARCHAR(1024), 
+    mix_hash VARCHAR(66),
+    withdrawals_root VARCHAR(66),
+    blob_gas_used VARCHAR(78),
+    excess_blob_gas VARCHAR(78),
+    parent_beacon_block_root VARCHAR(66)
     );
