@@ -109,7 +109,29 @@ pub async fn write_blockheader(block_header: BlockHeaderWithFullTransaction) -> 
             blob_gas_used, excess_blob_gas, parent_beacon_block_root
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
-        ON CONFLICT (number) DO NOTHING
+        ON CONFLICT (number)
+        DO UPDATE SET 
+            block_hash = EXCLUDED.block_hash,
+            gas_limit = EXCLUDED.gas_limit,
+            gas_used = EXCLUDED.gas_used,
+            base_fee_per_gas = EXCLUDED.base_fee_per_gas,
+            nonce = EXCLUDED.nonce,
+            transaction_root = EXCLUDED.transaction_root,
+            receipts_root = EXCLUDED.receipts_root,
+            state_root = EXCLUDED.state_root,
+            parent_hash = EXCLUDED.parent_hash,
+            miner = EXCLUDED.miner,
+            logs_bloom = EXCLUDED.logs_bloom,
+            difficulty = EXCLUDED.difficulty,
+            totalDifficulty = EXCLUDED.totalDifficulty,
+            sha3_uncles = EXCLUDED.sha3_uncles,
+            timestamp = EXCLUDED.timestamp,
+            extra_data = EXCLUDED.extra_data,
+            mix_hash = EXCLUDED.mix_hash,
+            withdrawals_root = EXCLUDED.withdrawals_root,
+            blob_gas_used = EXCLUDED.blob_gas_used,
+            excess_blob_gas = EXCLUDED.excess_blob_gas,
+            parent_beacon_block_root = EXCLUDED.parent_beacon_block_root;
         "#,
     )
     .bind(&block_header.hash)
