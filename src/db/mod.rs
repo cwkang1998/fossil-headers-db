@@ -2,7 +2,7 @@ use crate::types::type_utils::convert_hex_string_to_i64;
 use crate::types::BlockDetails;
 use crate::types::BlockHeaderWithFullTransaction;
 use anyhow::{Context, Result};
-use log::{info, warn, error};
+use log::{error, info, warn};
 use sqlx::postgres::PgConnectOptions;
 use sqlx::ConnectOptions;
 use sqlx::QueryBuilder;
