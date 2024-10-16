@@ -1,12 +1,12 @@
 use anyhow::{Context, Result};
 use futures_util::future::join_all;
-use log::{error, info, warn};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{self, Duration};
 use tokio::task;
+use tracing::{error, info, warn};
 
-use crate::{db, endpoints, fossil_mmr};
+use crate::{db, endpoints};
 
 const MAX_RETRIES: u64 = 10;
 
@@ -55,7 +55,7 @@ async fn fill_missing_blocks_in_range(
                         "[fill_gaps] No missing values found from {} to {}",
                         range_start_pointer, range_end_pointer
                     );
-                    range_start_pointer = range_end_pointer + 1
+                    range_start_pointer = range_end_pointer + 1;
                 }
             }
         }
@@ -125,7 +125,6 @@ async fn chain_update_blocks(
         }
 
         update_blocks(range_start, last_block, size, should_terminate).await?;
-        fossil_mmr::update_mmr(should_terminate).await?;
 
         loop {
             if should_terminate.load(Ordering::Relaxed) {

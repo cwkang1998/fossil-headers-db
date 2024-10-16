@@ -17,8 +17,6 @@ static NODE_CONNECTION_STRING: Lazy<String> = Lazy::new(|| {
 #[derive(Deserialize, Debug)]
 pub struct RpcResponse<T> {
     pub result: T,
-    // pub id: String,
-    // pub jsonrpc: String,
 }
 
 #[derive(Serialize)]
@@ -81,7 +79,7 @@ async fn make_rpc_call<T: Serialize, R: for<'de> Deserialize<'de>>(
                 .await
         }
     };
-    let response = raw_response?.json::<RpcResponse<R>>().await?;
 
+    let response = raw_response?.json::<RpcResponse<R>>().await?;
     Ok(response.result)
 }

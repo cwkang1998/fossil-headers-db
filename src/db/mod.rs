@@ -1,15 +1,14 @@
 use crate::types::type_utils::convert_hex_string_to_i64;
-use crate::types::BlockDetails;
 use crate::types::BlockHeaderWithFullTransaction;
 use anyhow::{Context, Result};
-use log::{error, info, warn};
+use log::LevelFilter;
 use sqlx::postgres::PgConnectOptions;
 use sqlx::ConnectOptions;
 use sqlx::QueryBuilder;
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
 use std::sync::Arc;
-use std::time::Duration;
 use tokio::sync::OnceCell;
+use tracing::{error, info, warn};
 
 static DB_POOL: OnceCell<Arc<Pool<Postgres>>> = OnceCell::const_new();
 pub const DB_MAX_CONNECTIONS: u32 = 1000;
@@ -18,16 +17,20 @@ pub async fn get_db_pool() -> Result<Arc<Pool<Postgres>>> {
     match DB_POOL.get() {
         Some(pool) => Ok(pool.clone()),
         None => {
+            // Parse the connection string from environment variables
             let mut conn_options: PgConnectOptions = dotenvy::var("DB_CONNECTION_STRING")
                 .expect("DB_CONNECTION_STRING must be set")
                 .parse()?;
-            conn_options =
-                conn_options.log_slow_statements(log::LevelFilter::Debug, Duration::new(120, 0));
 
+            // Use `log::LevelFilter` for sqlx
+            conn_options = conn_options.log_statements(LevelFilter::Debug);
+
+            // Configure the connection pool
             let pool = PgPoolOptions::new()
                 .max_connections(DB_MAX_CONNECTIONS)
                 .connect_with(conn_options)
                 .await?;
+
             let arc_pool = Arc::new(pool);
             match DB_POOL.set(arc_pool.clone()) {
                 Ok(_) => Ok(arc_pool),
@@ -50,11 +53,6 @@ pub async fn create_tables() -> Result<()> {
     Ok(())
 }
 
-/**
- * Retrieves the blocknumber of the latest stored blockheader
- *
- * @Returns blocknumber, else -1 if table is empty
- */
 pub async fn get_last_stored_blocknumber() -> Result<i64> {
     let pool = get_db_pool().await.context("Failed to get database pool")?;
     let result: (i64,) = sqlx::query_as("SELECT COALESCE(MAX(number), -1) FROM blockheaders")
@@ -65,9 +63,6 @@ pub async fn get_last_stored_blocknumber() -> Result<i64> {
     Ok(result.0)
 }
 
-/**
- * Returns the first missing blocknumber in between provided numbers (inclusive)
- */
 pub async fn find_first_gap(start: i64, end: i64) -> Result<Option<i64>> {
     let pool = get_db_pool().await.context("Failed to get database pool")?;
     let result: Option<(i64,)> = sqlx::query_as(
@@ -95,10 +90,6 @@ pub async fn write_blockheader(block_header: BlockHeaderWithFullTransaction) -> 
     let pool = get_db_pool().await?;
     let mut tx = pool.begin().await?;
 
-    // // Print block_header details
-    // info!("Block Header Details: {:?}", block_header);
-
-    // Insert block header
     let result = sqlx::query(
         r#"
         INSERT INTO blockheaders (
@@ -156,7 +147,7 @@ pub async fn write_blockheader(block_header: BlockHeaderWithFullTransaction) -> 
     .bind(&block_header.blob_gas_used)
     .bind(&block_header.excess_blob_gas)
     .bind(&block_header.parent_beacon_block_root)
-    .execute(&mut *tx) // Changed this line
+    .execute(&mut *tx)
     .await
     .with_context(|| format!("Failed to insert block header for block number: {}", block_header.number))
     .map_err(|e| {
@@ -177,7 +168,6 @@ pub async fn write_blockheader(block_header: BlockHeaderWithFullTransaction) -> 
         );
     }
 
-    // Insert transactions
     if !block_header.transactions.is_empty() {
         let mut query_builder: QueryBuilder<Postgres> = QueryBuilder::new(
             "INSERT INTO transactions (
@@ -218,28 +208,4 @@ pub async fn write_blockheader(block_header: BlockHeaderWithFullTransaction) -> 
 
     tx.commit().await.context("Failed to commit transaction")?;
     Ok(())
-}
-
-/**
- * Retrieves next n numbers and hashes after provided blocknumber
- *
- * @Returns blocknumbers and hashes wrapped in a BlockDetails struct
- */
-pub async fn get_blockheaders(start_blocknumber: i64, limit: i32) -> Result<Vec<BlockDetails>> {
-    let pool = get_db_pool().await?;
-    let result: Vec<BlockDetails> = sqlx::query_as(
-        r#"
-        SELECT block_hash, number FROM blockheaders
-            WHERE number > $1
-            ORDER BY number ASC
-            LIMIT $2
-        "#,
-    )
-    .bind(start_blocknumber)
-    .bind(limit)
-    .fetch_all(&*pool)
-    .await
-    .context("Failed to get blockheaders")?;
-
-    Ok(result)
 }

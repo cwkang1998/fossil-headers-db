@@ -1,14 +1,7 @@
-use anyhow::Result;
 use axum::{
-    extract::Path,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
-use log::info;
-
-use crate::types::ProofWrapper;
-use crate::{fossil_mmr, types::Update};
 
 pub struct Error(anyhow::Error);
 
@@ -31,16 +24,14 @@ where
     }
 }
 
-pub async fn get_mmr_latest() -> Result<Json<Update>, Error> {
-    info!("Received request for latest mmr");
+// // Any remaining endpoints related to non-MMR functionality can be added here.
+// // Example placeholder:
+// pub async fn get_update_info() -> Result<Json<Update>, Error> {
+//     info!("Received request for latest update");
 
-    let res = fossil_mmr::get_mmr_stats().await?;
-    Ok(Json(res))
-}
-
-pub async fn get_mmr_proof(Path(blocknumber): Path<i64>) -> Result<Json<ProofWrapper>, Error> {
-    info!("Received request for proof for block {blocknumber}");
-
-    let res = fossil_mmr::get_proof(blocknumber).await?;
-    Ok(Json(ProofWrapper { proof: res }))
-}
+//     // Add any relevant logic here
+//     let res = Update {
+//         // Fill with appropriate fields or fetch data
+//     };
+//     Ok(Json(res))
+// }

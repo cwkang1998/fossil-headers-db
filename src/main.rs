@@ -1,7 +1,6 @@
 mod commands;
 mod db;
 mod endpoints;
-mod fossil_mmr;
 mod router;
 mod types;
 
