@@ -2,7 +2,7 @@ pub mod type_utils;
 
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct Transaction {
     pub hash: String,
     #[serde(rename(deserialize = "blockNumber"))]
@@ -69,7 +69,7 @@ pub struct BlockHeaderWithEmptyTransaction {
     pub parent_beacon_block_root: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 pub struct BlockHeaderWithFullTransaction {
     #[serde(rename(deserialize = "gasLimit"))]
     pub gas_limit: String,

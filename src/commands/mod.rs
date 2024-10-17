@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use eyre::{eyre, Context, Result};
 use futures_util::future::join_all;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -213,7 +213,7 @@ async fn process_block(block_number: i64) -> Result<()> {
         tokio::time::sleep(Duration::from_secs(backoff)).await;
     }
     error!("[update_from] Error with block number {}", block_number);
-    Err(anyhow::anyhow!("Failed to process block {}", block_number))
+    Err(eyre!("Failed to process block {}", block_number))
 }
 
 async fn get_first_missing_block(start: Option<i64>) -> Result<i64> {

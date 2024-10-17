@@ -1,8 +1,10 @@
-use anyhow::{Context, Result};
+// use anyhow::{Context};
 use once_cell::sync::Lazy;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
+use serde_json::json;
+use eyre::{Context, Result, eyre};
 
 use crate::types::{
     type_utils::convert_hex_string_to_i64, BlockHeaderWithEmptyTransaction,
@@ -47,16 +49,62 @@ pub async fn get_latest_finalized_blocknumber(timeout: Option<u64>) -> Result<i6
 pub async fn get_full_block_by_number(
     number: i64,
     timeout: Option<u64>,
-) -> Result<BlockHeaderWithFullTransaction> {
-    let params = RpcRequest {
+) -> eyre::Result<BlockHeaderWithFullTransaction> {
+    let params: Vec<serde_json::Value> = vec![
+        json!(format!("0x{:x}", number)),  // Hex string for block number
+        json!(true),                       // Boolean indicating full transaction data
+    ];
+
+    let request = RpcRequest {
         jsonrpc: "2.0",
         id: "0",
         method: "eth_getBlockByNumber",
-        params: vec![format!("0x{:x}", number), true.to_string()],
+        params,
     };
 
-    make_rpc_call::<_, BlockHeaderWithFullTransaction>(&params, timeout).await
+    let client = reqwest::Client::new();
+    let response = client
+        .post(NODE_CONNECTION_STRING.as_str())
+        .header("Content-Type", "application/json")
+        .json(&request)
+        .timeout(std::time::Duration::from_secs(timeout.unwrap_or(300)))
+        .send()
+        .await
+        .map_err(|e| eyre::eyre!("HTTP request failed: {}", e))?;
+
+    let status = response.status();
+    let headers = response.headers().clone();
+
+    println!("Status: {}", status);
+    println!("Headers: {:?}", headers);
+
+    let response_text = response.text().await.map_err(|e| {
+        eyre!("Failed to read response text: {}", e)
+    })?;
+
+    println!("Raw response for block {}: {}", number, response_text);
+
+    let raw_response: serde_json::Value = serde_json::from_str(&response_text).map_err(|e| {
+        eyre!(
+            "Failed to decode response for block {}: {}\nResponse: {}",
+            number,
+            e,
+            response_text
+        )
+    })?;
+
+    let block_value = raw_response
+        .get("result")
+        .ok_or_else(|| eyre!("Missing 'result' field for block {}", number))?;
+
+    let block: BlockHeaderWithFullTransaction = serde_json::from_value(block_value.clone()).map_err(
+        |e| eyre!("Failed to decode block {}: {}", number, e),
+    )?;
+
+    println!("Successfully retrieved block: {:?}", block);
+    Ok(block)
 }
+
 
 async fn make_rpc_call<T: Serialize, R: for<'de> Deserialize<'de>>(
     params: &T,
