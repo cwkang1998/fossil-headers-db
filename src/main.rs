@@ -1,9 +1,12 @@
+#![deny(unused_crate_dependencies)]
+
 mod commands;
 mod db;
 mod endpoints;
 mod router;
 mod types;
 
+use fossil_headers_db as _;
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 use core::cmp::min;
