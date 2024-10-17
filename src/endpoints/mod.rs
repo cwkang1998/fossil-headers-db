@@ -1,15 +1,15 @@
 // use anyhow::{Context};
-use once_cell::sync::Lazy;
-use reqwest::Client;
-use serde::{Deserialize, Serialize};
-use std::time::Duration;
-use serde_json::json;
-use eyre::{Context, Result, eyre};
-
 use crate::types::{
     type_utils::convert_hex_string_to_i64, BlockHeaderWithEmptyTransaction,
     BlockHeaderWithFullTransaction,
 };
+use eyre::{eyre, Context, Result};
+use once_cell::sync::Lazy;
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use std::time::Duration;
+use tracing::{debug, info, instrument};
 
 static CLIENT: Lazy<Client> = Lazy::new(Client::new);
 static NODE_CONNECTION_STRING: Lazy<String> = Lazy::new(|| {
@@ -46,13 +46,14 @@ pub async fn get_latest_finalized_blocknumber(timeout: Option<u64>) -> Result<i6
     }
 }
 
+#[instrument(level = "info", skip(timeout))]
 pub async fn get_full_block_by_number(
     number: i64,
     timeout: Option<u64>,
 ) -> eyre::Result<BlockHeaderWithFullTransaction> {
     let params: Vec<serde_json::Value> = vec![
-        json!(format!("0x{:x}", number)),  // Hex string for block number
-        json!(true),                       // Boolean indicating full transaction data
+        json!(format!("0x{:x}", number)), // Hex string for block number
+        json!(true),                      // Boolean indicating full transaction data
     ];
 
     let request = RpcRequest {
@@ -62,7 +63,7 @@ pub async fn get_full_block_by_number(
         params,
     };
 
-    let client = reqwest::Client::new();
+    let client = Client::new();
     let response = client
         .post(NODE_CONNECTION_STRING.as_str())
         .header("Content-Type", "application/json")
@@ -70,19 +71,20 @@ pub async fn get_full_block_by_number(
         .timeout(std::time::Duration::from_secs(timeout.unwrap_or(300)))
         .send()
         .await
-        .map_err(|e| eyre::eyre!("HTTP request failed: {}", e))?;
+        .map_err(|e| eyre!("HTTP request failed: {}", e))?;
 
     let status = response.status();
     let headers = response.headers().clone();
 
-    println!("Status: {}", status);
-    println!("Headers: {:?}", headers);
+    debug!(status = ?status, "HTTP response status");
+    debug!(?headers, "HTTP response headers");
 
-    let response_text = response.text().await.map_err(|e| {
-        eyre!("Failed to read response text: {}", e)
-    })?;
+    let response_text = response
+        .text()
+        .await
+        .map_err(|e| eyre!("Failed to read response text: {}", e))?;
 
-    println!("Raw response for block {}: {}", number, response_text);
+    debug!("Raw response for block {}: {}", number, response_text);
 
     let raw_response: serde_json::Value = serde_json::from_str(&response_text).map_err(|e| {
         eyre!(
@@ -97,14 +99,12 @@ pub async fn get_full_block_by_number(
         .get("result")
         .ok_or_else(|| eyre!("Missing 'result' field for block {}", number))?;
 
-    let block: BlockHeaderWithFullTransaction = serde_json::from_value(block_value.clone()).map_err(
-        |e| eyre!("Failed to decode block {}: {}", number, e),
-    )?;
+    let block: BlockHeaderWithFullTransaction = serde_json::from_value(block_value.clone())
+        .map_err(|e| eyre!("Failed to decode block {}: {}", number, e))?;
 
-    println!("Successfully retrieved block: {:?}", block);
+    info!("Successfully retrieved block {}", number);
     Ok(block)
 }
-
 
 async fn make_rpc_call<T: Serialize, R: for<'de> Deserialize<'de>>(
     params: &T,
