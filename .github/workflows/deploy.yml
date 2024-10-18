@@ -32,8 +32,16 @@ jobs:
             sudo mv target/release/fossil_headers_db /usr/local/bin/fossil_headers_db
 
             sudo systemctl daemon-reload
-            sudo systemctl restart fossil_headers_db
+
+            # Ensure no conflicting service is running
+            sudo systemctl stop fossil_headers_db || true
+
+            # Restart the service and verify status
+            sudo systemctl start fossil_headers_db
             sudo systemctl status fossil_headers_db --no-pager
+
+            # Ensure psql is installed
+            sudo apt update && sudo apt install -y postgresql-client
 
             # Fetch the first missing block - 1 using PSQL
             START_BLOCK=$(psql -U postgres -d fossil -t -c "
@@ -51,7 +59,13 @@ jobs:
                 FROM all_blocks
                 LEFT JOIN public.blockheaders bh ON all_blocks.block_number = bh.number
                 WHERE bh.number IS NULL
-            ) SELECT MIN(block_number) - 1 FROM missing_blocks;")
+            ) SELECT COALESCE(MIN(block_number) - 1, 0) FROM missing_blocks;")
+
+            if [ -z "$START_BLOCK" ]; then
+              echo "Failed to determine start block"; exit 1;
+            fi
+
+            echo "Starting block: $START_BLOCK"
 
             # Run cargo with the calculated start block
             nohup cargo run fix --start $START_BLOCK &
