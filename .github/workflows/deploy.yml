@@ -40,32 +40,10 @@ jobs:
             sudo systemctl start fossil_headers_db
             sudo systemctl status fossil_headers_db --no-pager
 
-            # Ensure psql is installed
-            sudo apt update && sudo apt install -y postgresql-client
-
-            # Fetch the first missing block - 1 using PSQL
-            START_BLOCK=$(psql -U postgres -d fossil -t -c "
-            WITH block_range AS (
-                SELECT MIN(number) AS min_block, MAX(number) AS max_block
-                FROM public.blockheaders
-            ), all_blocks AS (
-                SELECT n AS block_number
-                FROM generate_series(
-                    (SELECT min_block FROM block_range), 
-                    (SELECT max_block FROM block_range)
-                ) n
-            ), missing_blocks AS (
-                SELECT all_blocks.block_number
-                FROM all_blocks
-                LEFT JOIN public.blockheaders bh ON all_blocks.block_number = bh.number
-                WHERE bh.number IS NULL
-            ) SELECT COALESCE(MIN(block_number) - 1, 0) FROM missing_blocks;")
-
-            if [ -z "$START_BLOCK" ]; then
-              echo "Failed to determine start block"; exit 1;
-            fi
+            # Use predefined start block 20990670
+            START_BLOCK=20990670
 
             echo "Starting block: $START_BLOCK"
 
-            # Run cargo with the calculated start block
+            # Run cargo with the specified start block
             nohup cargo run fix --start $START_BLOCK &
