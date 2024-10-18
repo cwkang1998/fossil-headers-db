@@ -40,10 +40,9 @@ jobs:
             sudo systemctl start fossil_headers_db
             sudo systemctl status fossil_headers_db --no-pager
 
-            # Use predefined start block 20990670
-            START_BLOCK=20990670
+            START_BLOCK=20990710
 
             echo "Starting block: $START_BLOCK"
 
-            # Run cargo with the specified start block
-            nohup cargo run fix --start $START_BLOCK &
+            # Create or attach to a tmux session and run cargo inside it
+            tmux new-session -d -s fossil_fix_session "cargo run fix --start $START_BLOCK"
